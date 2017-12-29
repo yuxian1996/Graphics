@@ -8,15 +8,23 @@
 
 #pragma once
 
+struct TriangleInfo
+{
+	Model* model;
+	glm::vec3 points[3];
+	glm::vec3 normal;
+};
+
 struct OctreeNode
 {
-	int faceIndex;
-	int meshIndex;
+	//int faceIndex;
+	//int meshIndex;
+	//Model* model;
 	float cubeSize;
 	glm::vec3 cubeCenter;
-	glm::vec3 faceCenter;
+	//glm::vec3 faceCenter;
 	struct OctreeNode **childern;
-	Model* model;
+	std::vector<struct TriangleInfo> triangles;
 };
 
 struct HitInfo
@@ -29,7 +37,7 @@ struct HitInfo
 class SceneManager
 {
 public:
-	SceneManager() { mRoot = { -1, -1, MAXSIZE, glm::vec3(0,0,0), glm::vec3(0,0,0), nullptr, nullptr }; };
+	SceneManager() { mRoot = { MAXSIZE, glm::vec3(0,0,0), nullptr }; };
 	~SceneManager() {};
 
 	static SceneManager* Instance();
@@ -54,6 +62,7 @@ private:
 	/*Octree functions*/
 	/*Insert an octree node*/
 	void InsertNode(OctreeNode* iParent, OctreeNode* iNode);
+	void InsertTriangle(OctreeNode* iParent, const TriangleInfo& triganle);
 	void DeleteNode();
 	void FindParent(OctreeNode* iNode); 
 	void DestroyTree(OctreeNode* iNode);
@@ -67,7 +76,9 @@ private:
 		   bottom
            | 4  5 |
 		   | 6  7 |  */
-	int CalculateChildIndex(OctreeNode const* iParent, OctreeNode* iChild);
+	int CalculateChildIndex(OctreeNode const* iParent, const TriangleInfo& triangle, glm::vec3& oChildCenter) const;
+
+	bool CubeContainTriangle(const glm::vec3& cubeCenter, float halfSize, const TriangleInfo& triangle) const; 
 
 
 	static SceneManager* gpSceneManager;

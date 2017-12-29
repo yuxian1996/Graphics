@@ -33,18 +33,19 @@ void SceneManager::AddModel(Model* iModel)
 		std::vector<unsigned int> indices = meshes[i].GetIndices();
 		for (int j = 0; j < indices.size(); j += 3)
 		{
-			OctreeNode* node = new OctreeNode;
-			node->faceIndex = j / 3;
-			node->cubeSize = 0;
-			node->cubeCenter = glm::vec3(0, 0, 0);
-			node->faceCenter = (vertices[indices[j]].Position + vertices[indices[j + 1]].Position + vertices[indices[j + 2]].Position) / 3.0f;
-			node->meshIndex = i;
-			node->model = iModel;
-			node->childern = nullptr;
-			//for (int k = 0; k < 8; k++)
-			//	node->childern[k] = { -1, 0, glm::vec3(0,0,0), nullptr, nullptr, nullptr };
+			//OctreeNode* node = new OctreeNode;
+			TriangleInfo triangle;
+			triangle.model = iModel;
+			triangle.points[0] = vertices[indices[j]].Position;
+			triangle.points[1] = vertices[indices[j + 1]].Position;
+			triangle.points[2] = vertices[indices[j + 2]].Position;
+			triangle.normal = vertices[indices[j]].Normal;
 
-			InsertNode(&mRoot, node);
+			//InsertNode(&mRoot, node);
+			if (CubeContainTriangle(mRoot.cubeCenter, mRoot.cubeSize / 2, triangle))
+			{
+				InsertTriangle(&mRoot, triangle);
+			}
 		}
 	}
 }
@@ -122,41 +123,33 @@ float SceneManager::RaycastNode(const glm::vec3 & iOriginal, const glm::vec3 & i
 	//check if hit the node
 	if (IntersectCube(iOriginal, iDirection,  iNode->cubeCenter, iNode->cubeSize))
 	{
-		//if it's a end node, intersect the face in it
-		if (iNode->childern == nullptr)
+		//intersect with each triangle in this node
+		float minT = MAXSIZE, t;
+		HitInfo minHitInfo = { nullptr, glm::vec3(0,0,0) };
+		for (int i = 0; i < iNode->triangles.size(); i++)
 		{
-			const Mesh& mesh = iNode->model->GetAllMeshes()[iNode->meshIndex];
-			glm::vec3 point1 = mesh.GetVertices()[mesh.GetIndices()[iNode->faceIndex * 3]].Position;
-			glm::vec3 point2 = mesh.GetVertices()[mesh.GetIndices()[iNode->faceIndex * 3 + 1]].Position;
-			glm::vec3 point3 = mesh.GetVertices()[mesh.GetIndices()[iNode->faceIndex * 3 + 2]].Position;
-			glm::vec3 normal = mesh.GetVertices()[mesh.GetIndices()[iNode->faceIndex * 3 + 2]].Normal;
-
 			glm::vec3 hitPosition;
-			float t;
-			t = IntersectFace(iOriginal, iDirection, iLength, point1, point2, point3, normal, hitPosition);
-			if (t >= 0)
+			t = IntersectFace(iOriginal, iDirection, iLength, iNode->triangles[i].points[0], iNode->triangles[i].points[1],
+				iNode->triangles[i].points[2], iNode->triangles[i].normal, hitPosition);
+			if (t >= 0 && t < minT)
 			{
-				oHitInfo.hitPosition = hitPosition;
-				oHitInfo.hitObject = iNode->model;
+				//oHitInfo.hitPosition = hitPosition;
+				//oHitInfo.hitObject = iNode->triangles[i].model;
+				minHitInfo.hitPosition = hitPosition;
+				minHitInfo.hitObject = iNode->triangles[i].model;
+				minT = t;
 			}
-			else
-			{
-				oHitInfo.hitPosition = glm::vec3(0, 0, 0);
-				oHitInfo.hitObject = nullptr;
-			}
-			return t;
-		}
-		else
+		}			
+			
+		if (iNode->childern != nullptr)
 		{
 			//raycast each child
-			float minT = MAXSIZE;
-			HitInfo minHitInfo = { nullptr, glm::vec3(0,0,0)};
 			for (int i = 0; i < 8; i++)
 			{
 				if (iNode->childern[i] != nullptr)
 				{
 					HitInfo hitInfo;
-					float t =RaycastNode(iOriginal, iDirection, iLength, iNode->childern[i], hitInfo);
+					float t = RaycastNode(iOriginal, iDirection, iLength, iNode->childern[i], hitInfo);
 					if (t >= 0 && t < minT)
 					{
 						minHitInfo = hitInfo;
@@ -165,15 +158,22 @@ float SceneManager::RaycastNode(const glm::vec3 & iOriginal, const glm::vec3 & i
 				}
 			}
 
-			//doesn't intersect with any face
-			if (minHitInfo.hitObject == nullptr)
-				return -1;
-			
-			oHitInfo = minHitInfo;
-			return minT;
+
 		}
+
+		oHitInfo = minHitInfo;
+
+		//doesn't intersect with any face
+		if (minHitInfo.hitObject == nullptr)
+		{
+			return -1;
+		}
+
+		return minT;
+
 	}
 
+	oHitInfo.hitObject = nullptr;
 	return -1;
 }
 
@@ -248,58 +248,88 @@ float SceneManager::IntersectFace(const glm::vec3 & iOriginal, const glm::vec3 &
 	return -1;
 }
 
-void SceneManager::InsertNode(OctreeNode * iParent, OctreeNode * iNode)
+//void SceneManager::InsertNode(OctreeNode * iParent, OctreeNode * iNode)
+//{
+//	//if parent is empty (root node), move the content of node to parent
+//	if (iParent->model == nullptr && iParent->childern == nullptr)
+//	{
+//		iParent->faceCenter = iNode->faceCenter;
+//		iParent->faceIndex = iNode->faceIndex;
+//		iParent->meshIndex = iNode->meshIndex;
+//		iParent->model = iNode->model;
+//		delete iNode;
+//	}
+//	//if parent has no child, make a new child node to keep the content of parent, and insert iNode again
+//	else if (iParent->childern == nullptr)
+//	{
+//		OctreeNode* childNode = new OctreeNode;
+//		*childNode = *iParent;
+//		int index = CalculateChildIndex(iParent, childNode);
+//
+//		//todo
+//		if (index < 0)
+//			return;
+//		//assert(index >= 0);
+//
+//		CreateChildNodes(iParent);
+//		iParent->childern[index] = childNode;
+//
+//		//empty iParent
+//		iParent->faceIndex = -1;
+//		iParent->faceCenter = glm::zero<glm::vec3>();
+//		iParent->model = nullptr;
+//		iParent->meshIndex = -1;
+//
+//		//
+//		InsertNode(iParent, iNode);
+//	}
+//	//find the index of iNode and make it be child of iParent
+//	else
+//	{
+//		int index = CalculateChildIndex(iParent, iNode);
+//
+//		//todo
+//		if (index < 0)
+//			return;
+//		//assert(index >= 0);
+//
+//		if (iParent->childern[index] == nullptr)
+//		{
+//			iParent->childern[index] = iNode;
+//		}
+//		else
+//			InsertNode(iParent->childern[index], iNode);
+//	}
+//}
+
+void SceneManager::InsertTriangle(OctreeNode * iParent, const TriangleInfo & triangle)
 {
-	//if parent is empty (root node), move the content of node to parent
-	if (iParent->model == nullptr && iParent->childern == nullptr)
+	//insert triangle to iParent
+	glm::vec3 childCenter;
+	int index = CalculateChildIndex(iParent, triangle, childCenter);
+	if (index < 0)
 	{
-		iParent->faceCenter = iNode->faceCenter;
-		iParent->faceIndex = iNode->faceIndex;
-		iParent->meshIndex = iNode->meshIndex;
-		iParent->model = iNode->model;
-		delete iNode;
+		iParent->triangles.push_back(triangle);
 	}
-	//if parent has no child, make a new child node to keep the content of parent, and insert iNode again
-	else if (iParent->childern == nullptr)
-	{
-		OctreeNode* childNode = new OctreeNode;
-		*childNode = *iParent;
-		int index = CalculateChildIndex(iParent, childNode);
-
-		//todo
-		if (index < 0)
-			return;
-		//assert(index >= 0);
-
-		CreateChildNodes(iParent);
-		iParent->childern[index] = childNode;
-
-		//empty iParent
-		iParent->faceIndex = -1;
-		iParent->faceCenter = glm::zero<glm::vec3>();
-		iParent->model = nullptr;
-		iParent->meshIndex = -1;
-
-		//
-		InsertNode(iParent, iNode);
-	}
-	//find the index of iNode and make it be child of iParent
 	else
 	{
-		int index = CalculateChildIndex(iParent, iNode);
-
-		//todo
-		if (index < 0)
-			return;
-		//assert(index >= 0);
-
+		//create child node it doesn't exist
+		if (iParent->childern == nullptr)
+		{
+			CreateChildNodes(iParent);
+		}
 		if (iParent->childern[index] == nullptr)
 		{
-			iParent->childern[index] = iNode;
+			OctreeNode* node = new OctreeNode();
+			node->cubeSize = iParent->cubeSize / 2;
+			node->cubeCenter = childCenter;
+			node->childern = nullptr;
+			iParent->childern[index] = node;
 		}
-		else
-			InsertNode(iParent->childern[index], iNode);
+
+		InsertTriangle(iParent->childern[index], triangle);
 	}
+
 }
 
 void SceneManager::DestroyTree(OctreeNode* iNode)
@@ -313,16 +343,17 @@ void SceneManager::DestroyTree(OctreeNode* iNode)
 		{
 			DestroyTree(iNode->childern[i]);
 			delete iNode->childern[i];
+			iNode->triangles.clear();
 		}
 	}
 }
 
-bool SceneManager::IsEmptyNode(const OctreeNode& iNode) const
-{
-	if (iNode.model == nullptr)
-		return true;
-	return false;
-}
+//bool SceneManager::IsEmptyNode(const OctreeNode& iNode) const
+//{
+//	if (iNode.model == nullptr)
+//		return true;
+//	return false;
+//}
 
 void SceneManager::CreateChildNodes(OctreeNode * iParent)
 {
@@ -331,58 +362,70 @@ void SceneManager::CreateChildNodes(OctreeNode * iParent)
 		iParent->childern[i] = nullptr;
 }
 
-int SceneManager::CalculateChildIndex(OctreeNode const* iParent, OctreeNode* iChild)
+int SceneManager::CalculateChildIndex(OctreeNode const* iParent, const TriangleInfo& triangle, glm::vec3& oChildCenter) const
 {
-	glm::vec3 iChildFaceCenter = iChild->faceCenter;
 	glm::vec3 iParentCubeCenter = iParent->cubeCenter;
-	iChild->cubeSize = iParent->cubeSize / 2;
+	float childHalfSize = iParent->cubeSize / 4;
 
-	//todo
-	//assert(iChild->cubeSize != 0);
-	if (iChild->cubeSize == 0)
-		return -1;
-
-
-	if (iChildFaceCenter.x <= iParentCubeCenter.x && iChildFaceCenter.y >= iParentCubeCenter.y && iChildFaceCenter.z <= iParentCubeCenter.z)
+	if (CubeContainTriangle(iParentCubeCenter + glm::vec3(-1, 1, -1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(-1, 1, -1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(-1, 1, -1) * childHalfSize;
 		return 0;
 	}
-	else if (iChildFaceCenter.x >= iParentCubeCenter.x && iChildFaceCenter.y >= iParentCubeCenter.y && iChildFaceCenter.z <= iParentCubeCenter.z)
+	else if (CubeContainTriangle(iParentCubeCenter + glm::vec3(1, 1, -1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(1, 1, -1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(1, 1, -1) * childHalfSize;
 		return 1;
 	}
-	else if (iChildFaceCenter.x <= iParentCubeCenter.x && iChildFaceCenter.y >= iParentCubeCenter.y && iChildFaceCenter.z >= iParentCubeCenter.z)
+	else if (CubeContainTriangle(iParentCubeCenter + glm::vec3(-1, 1, 1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(-1, 1, 1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(-1, 1, 1) * childHalfSize;
 		return 2;
 	}
-	else if (iChildFaceCenter.x >= iParentCubeCenter.x && iChildFaceCenter.y >= iParentCubeCenter.y && iChildFaceCenter.z >= iParentCubeCenter.z)
+	else if (CubeContainTriangle(iParentCubeCenter + glm::vec3(1, 1, 1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(1, 1, 1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(1, 1, 1) * childHalfSize;
 		return 3;
 	}
-	else if(iChildFaceCenter.x <= iParentCubeCenter.x && iChildFaceCenter.y <= iParentCubeCenter.y && iChildFaceCenter.z <= iParentCubeCenter.z)
+	else if (CubeContainTriangle(iParentCubeCenter + glm::vec3(-1, -1, -1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(-1, -1, -1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(-1, -1, -1) * childHalfSize;
 		return 4;
 	}
-	else if (iChildFaceCenter.x >= iParentCubeCenter.x && iChildFaceCenter.y <= iParentCubeCenter.y && iChildFaceCenter.z <= iParentCubeCenter.z)
+	else if (CubeContainTriangle(iParentCubeCenter + glm::vec3(1, -1, -1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(1, -1, -1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(1, -1, -1) * childHalfSize;
 		return 5;
 	}
-	else if (iChildFaceCenter.x <= iParentCubeCenter.x && iChildFaceCenter.y <= iParentCubeCenter.y && iChildFaceCenter.z >= iParentCubeCenter.z)
+	else if (CubeContainTriangle(iParentCubeCenter + glm::vec3(-1, -1, 1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(-1, -1, 1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(-1, -1, 1) * childHalfSize;
 		return 6;
 	}
-	else if (iChildFaceCenter.x >= iParentCubeCenter.x && iChildFaceCenter.y <= iParentCubeCenter.y && iChildFaceCenter.z >= iParentCubeCenter.z)
+	else if (CubeContainTriangle(iParentCubeCenter + glm::vec3(1, -1, 1) * childHalfSize, childHalfSize, triangle))
 	{
-		iChild->cubeCenter = iParent->cubeCenter + glm::vec3(1, -1, 1) * (iParent->cubeSize / 4);
+		oChildCenter = iParentCubeCenter + glm::vec3(1, -1, 1) * childHalfSize;
 		return 7;
 	}
 
+	oChildCenter = glm::vec3(0, 0, 0);
 	return -1;
 }
+
+bool SceneManager::CubeContainTriangle(const glm::vec3& cubeCenter, float halfSize, const TriangleInfo & triangle) const
+{
+	int i = 0;
+	for (; i < 3; i++)
+	{
+		if (triangle.points[i].x > cubeCenter.x + halfSize || triangle.points[i].x < cubeCenter.x - halfSize ||
+			triangle.points[i].y > cubeCenter.y + halfSize || triangle.points[i].y < cubeCenter.y - halfSize ||
+			triangle.points[i].z > cubeCenter.z + halfSize || triangle.points[i].z < cubeCenter.z - halfSize)
+			break;
+	}
+
+	if (i >= 3)
+		return true;
+
+	return false;
+}
+
