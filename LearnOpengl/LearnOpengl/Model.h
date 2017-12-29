@@ -16,15 +16,18 @@
 class Model
 {
 public :
-	Model(char *ipPath) { Load(ipPath); };
+	Model(char *ipPath, std::string iName):mName(iName) { Load(ipPath);};
 	void SetShader(const Shader& iShader) { mShader = iShader; };
 	void Draw();
 
 	const std::vector<Mesh>& GetAllMeshes() { return mMeshes; };
 
+	const std::string GetName() const { return mName; };
+
 private:
 	std::vector<Mesh> mMeshes;
 	std::string mDirectory;
+	std::string mName;
 	Shader mShader;
 
 	void Load(std::string iPath);

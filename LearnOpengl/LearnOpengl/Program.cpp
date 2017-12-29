@@ -119,10 +119,15 @@ void Program::Run()
 	Light pointLight = { LightType::POINTLIGHT, glm::vec3(0, 10.0f, 5.0f), glm::vec3(0, 0, 0), glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.5f, 0.5f, 0.5f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 0.09f, 0.032f };
 	Light spotLight = { LightType::SPOTLIGHT, glm::vec3(0, 10.0f, 3.0f), glm::vec3(0, 0, -1.0f), glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.5f, 0.5f, 0.5f), glm::vec3(0.8f, 0.8f, 0.8f), 1.0f, 0.09f, 0.032f, glm::cos(glm::radians(15.0f)), glm::cos(glm::radians(25.0f)) };
 
-	Model* model = new Model("Model/nanosuit.obj");
-	//Model* model = new Model("Model/Cube/cube.obj");
+	Model* model = new Model("Model/Cube/cube.obj", "Cube");
 	model->SetShader(shader);
 	SceneManager::Instance()->AddModel(model);
+
+	model = new Model("Model/nanosuit.obj", "Nanosuit");
+	model->SetShader(shader);
+	SceneManager::Instance()->AddModel(model);
+
+	SceneManager::Instance()->DestroyModel(model);
 
 	while (!glfwWindowShouldClose(mpWindow))
 	{

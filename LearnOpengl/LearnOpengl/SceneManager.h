@@ -1,6 +1,7 @@
 #include "Model.h"
 
 #include <vector>
+#include <unordered_map>
 //#include <float.h>
 
 #define MAXSIZE 1E5
@@ -46,12 +47,17 @@ public:
 
 	void AddModel (Model* iModel);
 
+	void DestroyModel(Model* iModel);
+
+	/*Clear empty node*/
+	void Rebuild(OctreeNode* iNode);
+
 	bool Raycast(glm::vec3 iOriginal, glm::vec3 iDirection, float iLength, HitInfo& oHitInfo);
 
 	/*Draw the whole scene */
 	void Draw();
 
-	const std::vector<Model*>& GetAllModels() const { return mAllModels; };
+	const std::unordered_map<std::string, Model*>& GetAllModels() const { return mAllModels; };
 	const OctreeNode& GetSceneRoot() const { return mRoot; };
 private: 
 	
@@ -63,9 +69,11 @@ private:
 	/*Insert an octree node*/
 	void InsertNode(OctreeNode* iParent, OctreeNode* iNode);
 	void InsertTriangle(OctreeNode* iParent, const TriangleInfo& triganle);
+	void DestroyTriangleInNodeByModel(OctreeNode* iNode, Model* iModel) const;
 	void DeleteNode();
 	void FindParent(OctreeNode* iNode); 
 	void DestroyTree(OctreeNode* iNode);
+	int FindNode(OctreeNode* iNode, const TriangleInfo& triangle, OctreeNode* oNode) const;
 	bool IsEmptyNode(const OctreeNode& iNode) const;
 	void CreateChildNodes(OctreeNode* iParent);
 
@@ -84,5 +92,7 @@ private:
 	static SceneManager* gpSceneManager;
 
 	OctreeNode mRoot;
-	std::vector<Model*> mAllModels;
+	//std::vector<Model*> mAllModels;
+	std::unordered_map<std::string, Model*> mAllModels;
+
 };

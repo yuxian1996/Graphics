@@ -17,15 +17,17 @@ SceneManager* SceneManager::Instance()
 void SceneManager::Destroy()
 {
 	DestroyTree(&mRoot);
-	for (int i = 0; i < mAllModels.size(); i++)
-		delete(mAllModels[i]);
+	for (auto kv : mAllModels)
+	{
+		delete kv.second;
+	}
 	mAllModels.clear();
 	delete gpSceneManager;
 }
 
 void SceneManager::AddModel(Model* iModel)
 {
-	mAllModels.push_back(iModel);
+	mAllModels[iModel->GetName()] = iModel;
 	std::vector<Mesh> meshes = iModel->GetAllMeshes();
 	for (int i = 0; i < meshes.size(); i++)
 	{
@@ -33,7 +35,6 @@ void SceneManager::AddModel(Model* iModel)
 		std::vector<unsigned int> indices = meshes[i].GetIndices();
 		for (int j = 0; j < indices.size(); j += 3)
 		{
-			//OctreeNode* node = new OctreeNode;
 			TriangleInfo triangle;
 			triangle.model = iModel;
 			triangle.points[0] = vertices[indices[j]].Position;
@@ -41,7 +42,6 @@ void SceneManager::AddModel(Model* iModel)
 			triangle.points[2] = vertices[indices[j + 2]].Position;
 			triangle.normal = vertices[indices[j]].Normal;
 
-			//InsertNode(&mRoot, node);
 			if (CubeContainTriangle(mRoot.cubeCenter, mRoot.cubeSize / 2, triangle))
 			{
 				InsertTriangle(&mRoot, triangle);
@@ -50,6 +50,55 @@ void SceneManager::AddModel(Model* iModel)
 	}
 }
 
+void SceneManager::DestroyModel(Model * iModel)
+{
+	auto search = mAllModels.find(iModel->GetName());
+
+	if (search != mAllModels.end())
+	{
+		Model* model = search->second;
+		DestroyTriangleInNodeByModel(&mRoot, model);
+	}
+
+	mAllModels.erase(iModel->GetName());
+	Rebuild(&mRoot);
+}
+
+void SceneManager::Rebuild(OctreeNode* iNode)
+{
+	if (iNode->childern != nullptr)
+	{
+		for (int i = 0; i < 8; i++)
+			if (iNode->childern[i] != nullptr)
+			{
+				//delete all empty node in child nodes
+				Rebuild(iNode->childern[i]);
+
+				//if child node is empty, delete it
+				if (IsEmptyNode(*iNode->childern[i]))
+				{
+					delete iNode->childern[i];
+					iNode->childern[i] = nullptr;
+				}
+			}
+
+		//find if number of children is 0
+		int i = 0;
+		for (; i < 8; i++)
+			if (iNode->childern[i] != nullptr)
+				break;
+
+		//if iNode has no children, set children point to null
+		if (i >= 8)
+		{
+			delete iNode->childern;
+			iNode->childern = nullptr;
+		}
+
+	}
+
+
+}
 bool SceneManager::Raycast(glm::vec3 iOriginal, glm::vec3 iDirection, float iLength, HitInfo & oHitInfo)
 {
 	/* No Octree
@@ -112,8 +161,11 @@ bool SceneManager::Raycast(glm::vec3 iOriginal, glm::vec3 iDirection, float iLen
 
 void SceneManager::Draw()
 {
-	for (int i = 0; i < mAllModels.size(); i++)
-		mAllModels[i]->Draw();
+
+	for (auto kv : mAllModels)
+	{
+		kv.second->Draw();
+	}
 }
 
 
@@ -332,6 +384,25 @@ void SceneManager::InsertTriangle(OctreeNode * iParent, const TriangleInfo & tri
 
 }
 
+void SceneManager::DestroyTriangleInNodeByModel(OctreeNode * iNode, Model * iModel) const
+{
+	for (int i = 0; i < iNode->triangles.size(); i++)
+	{
+		if (iNode->triangles[i].model == iModel)
+		{
+			iNode->triangles.erase(iNode->triangles.begin() + i);
+			i--;
+		}
+	}
+
+	if (iNode->childern != nullptr)
+	{
+		for (int i = 0; i < 8; i++)
+			if (iNode->childern[i] != nullptr)
+				DestroyTriangleInNodeByModel(iNode->childern[i], iModel);
+	}
+}
+
 void SceneManager::DestroyTree(OctreeNode* iNode)
 {
 	if (iNode->childern == nullptr)
@@ -348,12 +419,44 @@ void SceneManager::DestroyTree(OctreeNode* iNode)
 	}
 }
 
-//bool SceneManager::IsEmptyNode(const OctreeNode& iNode) const
-//{
-//	if (iNode.model == nullptr)
-//		return true;
-//	return false;
-//}
+int SceneManager::FindNode(OctreeNode* iNode, const TriangleInfo & triangle, OctreeNode* oNode) const
+{
+	//triangle is in this node
+	for (int i = 0; i < iNode->triangles.size(); i++)
+	{
+		if (triangle.model == iNode->triangles[i].model && memcmp(&triangle, &(iNode->triangles[i]), sizeof(triangle)) == 0)
+		{
+			//iNode->triangles.erase(iNode->triangles.begin() + i);
+			oNode = iNode;
+			return i;
+		}
+	}
+
+	//find in its children
+	if (iNode->childern != nullptr)
+	{
+		for (int i = 0; i < 8; i++)
+		{
+			if (iNode->childern[i] != nullptr)
+			{
+				int index = FindNode(iNode->childern[i], triangle, oNode);
+				if (index >= 0)
+					return index;
+			}
+				
+		}
+	}
+
+	return -1;
+		
+}
+
+bool SceneManager::IsEmptyNode(const OctreeNode& iNode) const
+{
+	if (iNode.childern == nullptr && iNode.triangles.size() == 0)
+		return true;
+	return false;
+}
 
 void SceneManager::CreateChildNodes(OctreeNode * iParent)
 {
