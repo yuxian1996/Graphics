@@ -1,9 +1,9 @@
 #include "Light.h"
 
 #include <GLAD/glad/glad.h>
-#include <glm/glm/glm.hpp>
-#include <glm/glm/gtc/matrix_transform.hpp>
-#include <glm/glm/gtc/type_ptr.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <string>
 #include <fstream>
@@ -30,7 +30,7 @@ public:
 	void Set(const std::string &name, float value) const;
 	void Set(const std::string &name, const glm::mat4  &mat) const;
 	void Set(const std::string &name, const glm::vec3  &vector) const;
-	void Set(const std::string& name, const Light& light) const;
+	void Set(const std::string& name, Light* light) const;
 
 		
 private:

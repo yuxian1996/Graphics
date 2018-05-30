@@ -7,11 +7,12 @@
 
 #include <GLAD/glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <glm/glm/glm.hpp>
-#include <glm/glm/gtc/matrix_transform.hpp>
-#include <glm/glm/gtc/type_ptr.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
+#include <vector>
 
 #pragma once
 
@@ -47,6 +48,9 @@ private:
 	static Camera* mpCamera;
 
 	GLFWwindow* mpWindow;
+	std::vector<Shader> mShaderList;
+	int cntShaderIndex;
+	static float width, height, farDistance, nearDistance;
 	unsigned int VBO, VAO, EBO;
 	float mDeltaTime = 0.0f;
 	float mLastFrame = 0.0f;

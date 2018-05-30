@@ -69,8 +69,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>C:\Users\u1166596\Desktop\Files\Graphics\3rdLib\Include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\u1166596\Desktop\Files\Graphics\3rdLib\Lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)3rdLib/Include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)3rdLib\Lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\Users\u1166596\Desktop\Files\Graphics\3rdLib\Include;$(IncludePath)</IncludePath>
@@ -92,7 +92,7 @@
     </ClCompile>
     <Link />
     <Link>
-      <AdditionalDependencies>opengl32.lib;assimp-vc140-mt.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;assimp-vc140-mt-$(Configuration).lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -137,6 +137,7 @@
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="glad.c" />
+    <ClCompile Include="Light.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="Model.cpp" />

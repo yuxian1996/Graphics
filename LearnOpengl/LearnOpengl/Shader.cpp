@@ -85,36 +85,45 @@ void Shader::Set(const std::string & name, const glm::vec3 & vector) const
 	glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, &vector[0]);
 }
 
-void Shader::Set(const std::string& name, const Light& light) const
+void Shader::Set(const std::string& name, Light* light) const
 {
-	Set(name + ".type", light.type);
-	Set(name + ".ambient", light.ambient);
-	Set(name + ".diffuse", light.diffuse);
-	Set(name + ".specular", light.specular);
+	light->SetToShader(name, *this);
 
-	switch (light.type)
-	{
-	case LightType::DIRECTIONALLIGHT:
-		Set(name + ".direction", light.direction);
-		break;
-	case LightType::POINTLIGHT:
-		Set(name + ".position", light.position);
+	if (dynamic_cast<DirectionalLight*>(light) != NULL)
+		Set(name + ".type", LightType::DIRECTIONALLIGHT);
+	else if(dynamic_cast<PointLight*>(light) != NULL)
+		Set(name + ".type", LightType::POINTLIGHT);
+	else if(dynamic_cast<SpotLight*>(light) !=NULL)
+		Set(name + ".type", LightType::SPOTLIGHT);
 
-		Set(name + ".constant", light.constant);
-		Set(name + ".linear", light.linear);
-		Set(name + ".quadratic", light.quadratic);
-		break;
-	case LightType::SPOTLIGHT:
-		Set(name + ".direction", light.direction);
-		Set(name + ".position", light.position);
-		Set(name + ".constant", light.constant);
-		Set(name + ".linear", light.linear);
-		Set(name + ".quadratic", light.quadratic);
-		Set(name + ".cutOff", light.cutOff);
-		Set(name + ".outerCutOff", light.outerCutOff);
-	default:
-		break;
-	}
+	//Set(name + ".type", light.type);
+	//Set(name + ".ambient", light.ambient);
+	//Set(name + ".diffuse", light.diffuse);
+	//Set(name + ".specular", light.specular);
+
+	//switch (light.type)
+	//{
+	//case LightType::DIRECTIONALLIGHT:
+	//	Set(name + ".direction", light.direction);
+	//	break;
+	//case LightType::POINTLIGHT:
+	//	Set(name + ".position", light.position);
+
+	//	Set(name + ".constant", light.constant);
+	//	Set(name + ".linear", light.linear);
+	//	Set(name + ".quadratic", light.quadratic);
+	//	break;
+	//case LightType::SPOTLIGHT:
+	//	Set(name + ".direction", light.direction);
+	//	Set(name + ".position", light.position);
+	//	Set(name + ".constant", light.constant);
+	//	Set(name + ".linear", light.linear);
+	//	Set(name + ".quadratic", light.quadratic);
+	//	Set(name + ".cutOff", light.cutOff);
+	//	Set(name + ".outerCutOff", light.outerCutOff);
+	//default:
+	//	break;
+	//}
 }
 
 bool Shader::Compile()

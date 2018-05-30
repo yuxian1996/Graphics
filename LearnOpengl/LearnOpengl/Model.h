@@ -1,8 +1,8 @@
 #include "Shader.h"
 #include "Mesh.h"
 
-#include <glm/glm/glm.hpp>
-#include <glm/glm/gtc/matrix_transform.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include "stb_image.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
