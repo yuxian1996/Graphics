@@ -21,8 +21,8 @@ void Program::MouseCallBack(GLFWwindow * window, double xpos, double ypos)
 		HitInfo info;
 		//Utility::Raycast(glm::vec3(0.2f, 2, 5), glm::vec3(0,0,-1), 1000, info);
 
-		float upAngle = (height / 2.0f - ypos) / height / 2.0f * 22.5f;
-		float rightAngle = (width / 2.0f - xpos) / width / 2.0f * (22.5f * width / height);
+		float upAngle = (height / 2.0f - ypos) / (height / 2.0f) * 22.5f;
+		float rightAngle = (width / 2.0f - xpos) / (width / 2.0f) * (22.5f * width / height);
 		glm::vec3 direction = mpCamera->GetDirection();
 		glm::mat4 rotation;
 		rotation = glm::rotate(rotation, glm::radians(upAngle), glm::vec3(1, 0, 0));
@@ -66,6 +66,197 @@ void Program::ScrollCallBack(GLFWwindow * window, double xoffset, double yoffset
 	mpCamera->Zoom(yoffset);
 }
 
+void Program::LightMode(Light* light)
+{
+	mShaderList[(int)ShaderType::LIGHT].Use();
+	glm::mat4 trans;
+	mShaderList[(int)ShaderType::LIGHT].Set("transform", trans);
+
+	glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
+	mShaderList[(int)ShaderType::LIGHT].Set("projection", projection);
+
+	glm::mat4 view = mpCamera->GetViewMatrix();
+	mShaderList[(int)ShaderType::LIGHT].Set("view", view);
+
+	glm::vec3 viewPos = mpCamera->GetPosition();
+	mShaderList[(int)ShaderType::LIGHT].Set("viewPos", viewPos);
+
+
+	mShaderList[0].Set("light", light);
+	SceneManager::Instance()->Draw();
+}
+
+void Program::DepthTest()
+{
+	mShaderList[(int)ShaderType::DEPTH].Use();
+	glm::mat4 trans;
+	mShaderList[(int)ShaderType::DEPTH].Set("transform", trans);
+
+	glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
+	mShaderList[(int)ShaderType::DEPTH].Set("projection", projection);
+
+	glm::mat4 view = mpCamera->GetViewMatrix();
+	mShaderList[(int)ShaderType::DEPTH].Set("view", view);
+
+	glm::vec3 viewPos = mpCamera->GetPosition();
+	mShaderList[(int)ShaderType::DEPTH].Set("viewPos", viewPos);
+
+
+	mShaderList[(int)ShaderType::DEPTH].Set("near", nearDistance);
+	mShaderList[(int)ShaderType::DEPTH].Set("far", farDistance);
+	SceneManager::Instance()->Draw();
+
+}
+
+void Program::OutlineMode(Light* light)
+{
+	glEnable(GL_STENCIL_TEST);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+	glStencilFunc(GL_ALWAYS, 1, 0xFF);
+	glStencilMask(0xFF);
+	mShaderList[(int)ShaderType::LIGHT].Use();
+
+	glm::mat4 trans;
+	mShaderList[(int)ShaderType::LIGHT].Set("transform", trans);
+
+	glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
+	mShaderList[(int)ShaderType::LIGHT].Set("projection", projection);
+
+	glm::mat4 view = mpCamera->GetViewMatrix();
+	mShaderList[(int)ShaderType::LIGHT].Set("view", view);
+
+	glm::vec3 viewPos = mpCamera->GetPosition();
+	mShaderList[(int)ShaderType::LIGHT].Set("viewPos", viewPos);
+	mShaderList[(int)ShaderType::LIGHT].Set("light", light);
+
+	SceneManager::Instance()->Draw();
+
+	glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+	glStencilMask(0x00);
+	glDisable(GL_DEPTH_TEST);
+	mShaderList[(int)ShaderType::OUTLINE].Use();
+	trans = glm::scale(trans, glm::vec3(1.01, 1.01, 1.01));
+	mShaderList[(int)ShaderType::OUTLINE].Set("transform", trans);
+	mShaderList[(int)ShaderType::OUTLINE].Set("projection", projection);
+	mShaderList[(int)ShaderType::OUTLINE].Set("view", view);
+	mShaderList[(int)ShaderType::OUTLINE].Set("viewPos", viewPos);
+
+	SceneManager::Instance()->Draw();
+
+	glStencilMask(0xFF);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_STENCIL_TEST);
+
+}
+
+void Program::FaceCullingMode(Light* light)
+{
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+
+	// same as below
+	//glCullFace(GL_BACK);
+	//glFrontFace(GL_CW);
+	mShaderList[(int)ShaderType::LIGHT].Use();
+	glm::mat4 trans;
+	mShaderList[(int)ShaderType::LIGHT].Set("transform", trans);
+
+	glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
+	mShaderList[(int)ShaderType::LIGHT].Set("projection", projection);
+
+	glm::mat4 view = mpCamera->GetViewMatrix();
+	mShaderList[(int)ShaderType::LIGHT].Set("view", view);
+
+	glm::vec3 viewPos = mpCamera->GetPosition();
+	mShaderList[(int)ShaderType::LIGHT].Set("viewPos", viewPos);
+
+
+	mShaderList[(int)ShaderType::LIGHT].Set("light", light);
+	SceneManager::Instance()->Draw();
+
+	glCullFace(GL_BACK);
+}
+
+void Program::PostProcessMode(Light * light)
+{
+	static bool firstEnter = true;
+	static unsigned int quadVAO, quadVBO;
+
+	static float quadVertices[] = { // vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
+		// positions   // texCoords
+		-1.0f,  1.0f,  0.0f, 1.0f,
+		-1.0f, -1.0f,  0.0f, 0.0f,
+		1.0f, -1.0f,  1.0f, 0.0f,
+
+		-1.0f,  1.0f,  0.0f, 1.0f,
+		1.0f, -1.0f,  1.0f, 0.0f,
+		1.0f,  1.0f,  1.0f, 1.0f
+	};
+
+	if (firstEnter)
+	{
+		firstEnter = false;
+
+		// generate frame buffer
+		glGenFramebuffers(1, &FBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+
+		// generate and bind texture for frame buffer
+		glGenTextures(1, &mTexture);
+		glBindTexture(GL_TEXTURE_2D, mTexture);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mTexture, 0);
+
+		// generate and bind render buffer object
+		glGenRenderbuffers(1, &RBO);
+		// bind render buffer
+		glBindRenderbuffer(GL_RENDERBUFFER, RBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+			std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// bind quad VAO and VBO
+		glGenVertexArrays(1, &quadVAO);
+		glGenBuffers(1, &quadVBO);
+		glBindVertexArray(quadVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+	}
+
+	// render objects to frame buffer
+	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+	glEnable(GL_DEPTH_TEST);
+	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	LightMode(light);
+
+	// render frame buffer to screen
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDisable(GL_DEPTH_TEST);
+	//clear all relevant buffers
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	mShaderList[ShaderType::POST_PROCESS].Use();
+	mShaderList[ShaderType::POST_PROCESS].Set("type", (int)mEffectType);
+	glBindVertexArray(quadVAO);
+	glBindTexture(GL_TEXTURE_2D, mTexture);
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+}
+
 
 bool Program::Init()
 {
@@ -104,6 +295,20 @@ bool Program::Init()
 	glEnable(GL_STENCIL_TEST);
 
 	mpCamera = new Camera(glm::vec3(0, 10.0f, 5.0f));
+
+	mSkybox = new Cubemap({
+		"Images/skybox/right.jpg",
+		"Images/skybox/left.jpg",
+		"Images/skybox/top.jpg",
+		"Images/skybox/bottom.jpg",
+		"Images/skybox/front.jpg",
+		"Images/skybox/back.jpg",
+	});
+	Shader skyboxShader;
+	if (!skyboxShader.Create("Shader/Skybox.vert", "Shader/Skybox.frag"))
+		return false;
+	mSkybox->SetShader(skyboxShader);
+
 	mDeltaTime = 0.0f;
 	mLastFrame = 0.0f;
 
@@ -120,7 +325,20 @@ bool Program::Init()
 		return false;
 	mShaderList.push_back(shader);
 
-	cntShaderIndex = 0;
+	if (!shader.Create("Shader/PostProcess.vert", "Shader/PostProcess.frag"))
+		return false;
+	mShaderList.push_back(shader);
+
+	cntModeIndex = 0;
+
+	//Model* model = new Model("Model/Room/room.obj", "Room");
+	//model->SetShader(shader);
+	//SceneManager::Instance()->AddModel(model);
+
+	// add model
+	Model* model = new Model("Model/nanosuit.obj", "Nanosuit");
+	model->SetShader(mShaderList[cntModeIndex]);
+	SceneManager::Instance()->AddModel(model);
 
 	return true;
 }
@@ -131,15 +349,6 @@ void Program::Run()
 	PointLight pointLight(glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.7f, 0.7f, 0.7f), glm::vec3(0.8f, 0.8f, 0.8f), glm::vec3(0, 10.0f, 5.0f), 1.0f, 0.09f, 0.032f);
 	SpotLight spotLight(glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.7f, 0.7f, 0.7f), glm::vec3(0.8f, 0.8f, 0.8f), glm::vec3(0, 0, -1.0f), glm::vec3(0, 10.0f, 3.0f),  1.0f, 0.09f, 0.032f, glm::cos(glm::radians(15.0f)), glm::cos(glm::radians(25.0f)));
 
-	//Model* model = new Model("Model/Room/room.obj", "Room");
-	//model->SetShader(shader);
-	//SceneManager::Instance()->AddModel(model);
-
-	Model* model = new Model("Model/nanosuit.obj", "Nanosuit");
-	model->SetShader(mShaderList[cntShaderIndex]);
-	SceneManager::Instance()->AddModel(model);
-
-	//SceneManager::Instance()->DestroyModel(model);
 
 	while (!glfwWindowShouldClose(mpWindow))
 	{
@@ -154,67 +363,30 @@ void Program::Run()
 		//render parameters
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-		mShaderList[cntShaderIndex].Use();
-		glm::mat4 trans;
-		mShaderList[cntShaderIndex].Set("transform", trans);
-
-		glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
-		mShaderList[cntShaderIndex].Set("projection", projection);
-
-		glm::mat4 view = mpCamera->GetViewMatrix();
-		mShaderList[cntShaderIndex].Set("view", view);
-
-		glm::vec3 viewPos = mpCamera->GetPosition();
-		mShaderList[cntShaderIndex].Set("viewPos", viewPos);
-
 
 		//draw
-		switch (cntShaderIndex)
+		switch (cntModeIndex)
 		{
 		case 0 :
-			mShaderList[cntShaderIndex].Set("light", &spotLight);
-			SceneManager::Instance()->Draw();
+			LightMode(&spotLight);
 			break;
 		case 1:
-			mShaderList[cntShaderIndex].Set("near", nearDistance);
-			mShaderList[cntShaderIndex].Set("far", farDistance);
-			SceneManager::Instance()->Draw();
+			DepthTest();
 			break;
 		case 2:
-		{
-			glEnable(GL_STENCIL_TEST);
-			glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-			glStencilFunc(GL_ALWAYS, 1, 0xFF);
-			glStencilMask(0xFF);
-			mShaderList[0].Use();
-			mShaderList[cntShaderIndex].Set("transform", trans);
-			mShaderList[cntShaderIndex].Set("projection", projection);
-			mShaderList[cntShaderIndex].Set("view", view);
-			mShaderList[cntShaderIndex].Set("viewPos", viewPos);
-
-			SceneManager::Instance()->Draw();
-
-			glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-			glStencilMask(0x00);
-			glDisable(GL_DEPTH_TEST);
-			mShaderList[cntShaderIndex].Use();
-			trans = glm::scale(trans, glm::vec3(1.01, 1.01, 1.01));
-			mShaderList[cntShaderIndex].Set("transform", trans);
-			mShaderList[cntShaderIndex].Set("projection", projection);
-			mShaderList[cntShaderIndex].Set("view", view);
-			mShaderList[cntShaderIndex].Set("viewPos", viewPos);
-
-			SceneManager::Instance()->Draw();
-
-			glStencilMask(0xFF);
-			glEnable(GL_DEPTH_TEST);
-			glDisable(GL_STENCIL_TEST);
-		}
+			OutlineMode(&pointLight);
+			break;
+		case 3:
+			FaceCullingMode(&directionalLight);
+			break;
+		case 4:
+			PostProcessMode(&directionalLight);
 			break;
 		default:
 			break;
 		}
 		
+		mSkybox->Draw();
 
 		//check events and swap buffers
 		glfwPollEvents();
@@ -246,70 +418,49 @@ void Program::ProcessInput(GLFWwindow * window)
 		mpCamera->Move(Camera::RIGHT, mDeltaTime);
 
 	// change shader
-	if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS && mShaderList.size() > 0 && cntShaderIndex != 0)
+	if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS  && cntModeIndex != 0)
 	{
 		std::cout << "Change to Light Shader" << std::endl;
-		cntShaderIndex = 0;
+		cntModeIndex = 0;
 	}
-	else if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS  && mShaderList.size() > 1 && cntShaderIndex != 1)
+	else if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS   && cntModeIndex != 1)
 	{
 		std::cout << "Change to Depth Testing" << std::endl;
-		cntShaderIndex = 1;
+		cntModeIndex = 1;
 	}
-	else if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS && mShaderList.size() > 2 && cntShaderIndex != 2)
+	else if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS  && cntModeIndex != 2)
 	{
 		std::cout << "Draw Outline" << std::endl;
-		cntShaderIndex = 2;
+		cntModeIndex = 2;
 	}
-	else if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS && mShaderList.size() > 3)
-		cntShaderIndex = 3;
-	else if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS && mShaderList.size() > 4)
-		cntShaderIndex = 4;
+	else if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS  && cntModeIndex != 3)
+	{
+		std::cout << "Face Culling" << std::endl;
+		cntModeIndex = 3;
+	}
+	else if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS && cntModeIndex != 4)
+	{
+		std::cout << "Post Processing" << std::endl;
+		cntModeIndex = 4;
+	}
 	else if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS && mShaderList.size() > 5)
-		cntShaderIndex = 5;
+		cntModeIndex = 5;
 	else if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS && mShaderList.size() > 6)
-		cntShaderIndex = 6;
+		cntModeIndex = 6;
 	else if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS && mShaderList.size() > 7)
-		cntShaderIndex = 7;
+		cntModeIndex = 7;
 	else if (glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS && mShaderList.size() > 8)
-		cntShaderIndex = 8;
+		cntModeIndex = 8;
 	else if (glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS && mShaderList.size() > 9)
-		cntShaderIndex = 9;
+		cntModeIndex = 9;
+
+	// change post process effect
+	if (cntModeIndex == 4)
+	{
+		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+			mEffectType = 1;
+		else if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+			mEffectType = 0;
+	}
 }
 
-void Program::BindBuffer()
-{
-	float vertices[] = {
-		0.5f,  0.5f, 0.0f,  // top right
-		0.5f, -0.5f, 0.0f,  // bottom right
-		-0.5f, -0.5f, 0.0f,  // bottom left
-		-0.5f,  0.5f, 0.0f   // top left 
-	};
-	unsigned int indices[] = {  // note that we start from 0!
-		0, 1, 3,   // first triangle
-		1, 2, 3    // second triangle
-	};
-
-	//generate
-	glGenBuffers(1, &VBO);
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &EBO);
-
-	//bind 
-	glBindVertexArray(VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	//set vertex attributes pointers
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	//unbind buffer and array
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-}

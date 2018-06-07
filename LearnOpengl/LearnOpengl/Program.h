@@ -4,6 +4,7 @@
 #include "Light.h"
 #include "SceneManager.h"
 #include "Utility.h"
+#include "Cubemap.h"
 
 #include <GLAD/glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -21,6 +22,14 @@
 class Program
 {
 public:
+	enum ShaderType
+	{
+		LIGHT,
+		DEPTH,
+		OUTLINE,
+		POST_PROCESS
+	};
+
 	Program() {};
 	~Program() {};
 	
@@ -34,9 +43,6 @@ public:
 	/*Process Input*/
 	void ProcessInput(GLFWwindow* window);
 
-	/*Bind buffers*/
-	void BindBuffer();
-
 	/*Get window*/
 	GLFWwindow* GetWindow() const { return mpWindow; } ;
 
@@ -44,14 +50,28 @@ public:
 	static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 	static void MouseCallBack(GLFWwindow* window, double xpos, double ypos);
 	static void ScrollCallBack(GLFWwindow* window, double xoffset, double yoffset);
+	static Camera* GetCamera() { return mpCamera; }
+	static glm::mat4 GetProjectionMatrix() {
+		return glm::perspective(glm::radians(mpCamera->GetZoom()), (float)width / (float)height, 0.1f, 100.0f);}
+
 private:
 	static Camera* mpCamera;
 
 	GLFWwindow* mpWindow;
 	std::vector<Shader> mShaderList;
-	int cntShaderIndex;
+	int cntModeIndex;
 	static float width, height, farDistance, nearDistance;
-	unsigned int VBO, VAO, EBO;
+	unsigned int FBO, RBO;
+	unsigned int mTexture;
+	unsigned int mEffectType = 0;
+	//unsigned int VBO, VAO, EBO;
 	float mDeltaTime = 0.0f;
 	float mLastFrame = 0.0f;
+	Cubemap* mSkybox;
+
+	void LightMode(Light* light);
+	void DepthTest();
+	void OutlineMode(Light* light);
+	void FaceCullingMode(Light* light);
+	void PostProcessMode(Light* light);
 };
