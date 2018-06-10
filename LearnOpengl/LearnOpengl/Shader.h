@@ -17,7 +17,7 @@ class Shader
 public:
 	Shader() {};
 	~Shader() {};
-	bool Create(const GLchar* vertexShader, const GLchar* fragShader);
+	bool Create(const GLchar* vertexShader, const GLchar* fragShader, const GLchar* GeometryShader = nullptr);
 
 	/*Use shader*/
 	void Use();
@@ -41,6 +41,7 @@ private:
 
 	unsigned int mVertexShader;
 	unsigned int mFragShader;
+	int mGeometryShader = -1;
 	unsigned int ID;
 
 };

@@ -1,22 +1,25 @@
 #include "Shader.h"
 
-bool Shader::Create(const GLchar* vertexShaderPath, const GLchar* fragShaderPath)
+bool Shader::Create(const GLchar* vertexShaderPath, const GLchar* fragShaderPath, const GLchar* geoShaderPath)
 {
 	std::string vertexCode;
 	std::string fragmentCode;
+	std::string geometryCode;
 	std::ifstream vertexShaderFile;
 	std::ifstream fragShaderFile;
+	std::ifstream geometryShaderFile;
 
 	//ensure ifstream can throw exceptions for debug
 	vertexShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 	fragShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+	geometryShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 
 	try
 	{
 		//open files
 		vertexShaderFile.open(vertexShaderPath);
 		fragShaderFile.open(fragShaderPath);
-		std::stringstream vertexShaderStream, fragShaderStream;
+		std::stringstream vertexShaderStream, fragShaderStream, geoShaderStream;
 
 		//read buffer to streams
 		vertexShaderStream << vertexShaderFile.rdbuf();
@@ -29,6 +32,16 @@ bool Shader::Create(const GLchar* vertexShaderPath, const GLchar* fragShaderPath
 		//convert stream to string
 		vertexCode = vertexShaderStream.str();
 		fragmentCode = fragShaderStream.str();
+
+		// read geometry file
+		if (geoShaderPath)
+		{
+			geometryShaderFile.open(geoShaderPath);
+			geoShaderStream << geometryShaderFile.rdbuf();
+			geometryShaderFile.close();
+			geometryCode = geoShaderStream.str();
+		}
+
 	}
 	catch (std::ifstream::failure e)
 	{
@@ -37,6 +50,7 @@ bool Shader::Create(const GLchar* vertexShaderPath, const GLchar* fragShaderPath
 
 	const char* vertexShaderCode = vertexCode.c_str();
 	const char* fragShaderCode = fragmentCode.c_str();
+	const char* geoShaderCode = geometryCode.c_str();
 
 	//create vertex shader
 	mVertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -46,11 +60,20 @@ bool Shader::Create(const GLchar* vertexShaderPath, const GLchar* fragShaderPath
 	mFragShader = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(mFragShader, 1, &fragShaderCode, NULL);
 
+	// create geometry shader
+	if (geoShaderPath)
+	{
+		mGeometryShader = glCreateShader(GL_GEOMETRY_SHADER);
+		glShaderSource(mGeometryShader, 1, &geoShaderCode, NULL);
+	}
+
 	if (!Compile() || !Link())
 		return false;
 
 	glDeleteShader(mVertexShader);
 	glDeleteShader(mFragShader);
+	if (geoShaderPath)
+		glDeleteShader(mGeometryShader);
 
 	return true;
 }
@@ -127,6 +150,20 @@ bool Shader::Compile()
 		return false;
 	}
 
+	//compile geometry shader
+	if (mGeometryShader >= 0)
+	{
+		glCompileShader(mGeometryShader);
+		glGetShaderiv(mGeometryShader, GL_COMPILE_STATUS, &success);
+		if (!success)
+		{
+			// log information
+			glGetShaderInfoLog(mGeometryShader, 512, NULL, infoLog);
+			std::cout << "ERROR::SHADER::GEOMETRY::COMPILATION_FAILED\n" << infoLog << std::endl;
+			return false;
+		}
+	}
+
 	return true;
 }
 
@@ -136,6 +173,8 @@ bool Shader::Link()
 	ID = glCreateProgram();
 	glAttachShader(ID, mVertexShader);
 	glAttachShader(ID, mFragShader);
+	if (mGeometryShader >= 0)
+		glAttachShader(ID, mGeometryShader);
 	glLinkProgram(ID);
 
 	int success;

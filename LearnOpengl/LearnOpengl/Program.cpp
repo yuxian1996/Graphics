@@ -255,6 +255,29 @@ void Program::PostProcessMode(Light * light)
 	glBindTexture(GL_TEXTURE_2D, mTexture);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
+	glEnable(GL_DEPTH_TEST);
+}
+
+void Program::GeometryUsedMode(Light * light)
+{
+	mShaderList[(int)ShaderType::GEOMETRY].Use();
+	glm::mat4 trans;
+	mShaderList[(int)ShaderType::GEOMETRY].Set("transform", trans);
+
+	glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
+	mShaderList[(int)ShaderType::GEOMETRY].Set("projection", projection);
+
+	glm::mat4 view = mpCamera->GetViewMatrix();
+	mShaderList[(int)ShaderType::GEOMETRY].Set("view", view);
+
+	glm::vec3 viewPos = mpCamera->GetPosition();
+	mShaderList[(int)ShaderType::GEOMETRY].Set("viewPos", viewPos);
+
+	mShaderList[(int)ShaderType::GEOMETRY].Set("time", (float)glfwGetTime());
+
+
+	mShaderList[0].Set("light", light);
+	SceneManager::Instance()->Draw();
 }
 
 
@@ -329,6 +352,10 @@ bool Program::Init()
 		return false;
 	mShaderList.push_back(shader);
 
+	if (!shader.Create("Shader/Geometry.vert", "Shader/Geometry.frag", "Shader/Geometry.geom"))
+		return false;
+	mShaderList.push_back(shader);
+
 	cntModeIndex = 0;
 
 	//Model* model = new Model("Model/Room/room.obj", "Room");
@@ -364,6 +391,8 @@ void Program::Run()
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+		mSkybox->Draw();
+
 		//draw
 		switch (cntModeIndex)
 		{
@@ -382,12 +411,12 @@ void Program::Run()
 		case 4:
 			PostProcessMode(&directionalLight);
 			break;
+		case 5:
+			GeometryUsedMode(&pointLight);
 		default:
 			break;
 		}
 		
-		mSkybox->Draw();
-
 		//check events and swap buffers
 		glfwPollEvents();
 		glfwSwapBuffers(mpWindow);
@@ -399,6 +428,8 @@ void Program::Run()
 void Program::Destroy()
 {
 	glfwTerminate();
+
+	SceneManager::Instance()->Destroy();
 
 	delete mpCamera;
 }
@@ -443,8 +474,11 @@ void Program::ProcessInput(GLFWwindow * window)
 		std::cout << "Post Processing" << std::endl;
 		cntModeIndex = 4;
 	}
-	else if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS && mShaderList.size() > 5)
+	else if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS && cntModeIndex != 5)
+	{
+		std::cout << "Use Geometry Shader" << std::endl;
 		cntModeIndex = 5;
+	}
 	else if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS && mShaderList.size() > 6)
 		cntModeIndex = 6;
 	else if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS && mShaderList.size() > 7)

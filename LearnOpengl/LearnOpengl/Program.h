@@ -27,7 +27,8 @@ public:
 		LIGHT,
 		DEPTH,
 		OUTLINE,
-		POST_PROCESS
+		POST_PROCESS,
+		GEOMETRY
 	};
 
 	Program() {};
@@ -74,4 +75,5 @@ private:
 	void OutlineMode(Light* light);
 	void FaceCullingMode(Light* light);
 	void PostProcessMode(Light* light);
+	void GeometryUsedMode(Light* light);
 };
