@@ -41,6 +41,8 @@ bool Shader::Create(const GLchar* vertexShaderPath, const GLchar* fragShaderPath
 			geometryShaderFile.close();
 			geometryCode = geoShaderStream.str();
 		}
+		else
+			mGeometryShader = -1;
 
 	}
 	catch (std::ifstream::failure e)

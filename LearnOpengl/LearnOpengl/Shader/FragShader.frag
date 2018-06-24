@@ -15,6 +15,7 @@ struct Light
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
+	float shininess;
 
 	//point light
 	float constant;
@@ -23,6 +24,8 @@ struct Light
 
 	float cutOff;
 	float outerCutOff;
+
+	bool isBlinn;
 };
 
 in vec2 TexCoords;
@@ -56,8 +59,17 @@ void main()
 		vec3 diffuse = light.diffuse * diff * texture(material.textureDiffuse1, TexCoords).rgb;
 		//specular
 		vec3 viewDir = normalize(viewPos - FragPos);
-		vec3 reflectDir = reflect(-lightDir, norm);
-		float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+		float spec = 0;
+		if(light.isBlinn)
+		{
+			vec3 halfwayDir = normalize(lightDir + viewDir);
+			spec = pow(max(dot(norm, halfwayDir), 0.0), 32);
+		}
+		else
+		{
+			vec3 reflectDir = reflect(-lightDir, norm);
+		 	spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);	
+		}
 		vec3 specular = light.specular * spec * texture(material.textureSpecular1, TexCoords).rgb;	
 
 		ambient *= attenuation;
@@ -107,5 +119,7 @@ void main()
 
 
 	}
+	float gamma = 2.2;
+	FragColor.rgb = pow(FragColor.rgb, vec3(1.0 / gamma));
 
 }

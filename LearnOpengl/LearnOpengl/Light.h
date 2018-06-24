@@ -5,23 +5,6 @@
 #pragma once
 
 enum LightType { DIRECTIONALLIGHT, POINTLIGHT, SPOTLIGHT };
-//struct Light
-//{
-//	LightType type;
-//	glm::vec3 position;
-//	glm::vec3 direction;
-//	glm::vec3 ambient;
-//	glm::vec3 diffuse;
-//	glm::vec3 specular;
-//
-//	float constant;
-//	float linear;
-//	float quadratic;
-//
-//	float cutOff;
-//	float outerCutOff;
-//
-//};
 
 class Shader;
 class Light
@@ -44,6 +27,7 @@ protected:
 	glm::vec3 mAmbient;
 	glm::vec3 mDiffuse;
 	glm::vec3 mSpecular;
+	bool bIsBlinn = true;
 };
 
 class DirectionalLight : public Light

@@ -6,6 +6,7 @@ void Light::SetToShader(const std::string& name, const Shader& shader) const
 	shader.Set(name + ".ambient", mAmbient);
 	shader.Set(name + ".diffuse", mDiffuse);
 	shader.Set(name + ".specular", mSpecular);
+	shader.Set(name + ".isBlinn", bIsBlinn);
 }
 
 void DirectionalLight::SetToShader(const std::string& name, const Shader& shader) const

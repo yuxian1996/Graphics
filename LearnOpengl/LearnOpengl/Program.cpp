@@ -181,6 +181,7 @@ void Program::PostProcessMode(Light * light)
 {
 	static bool firstEnter = true;
 	static unsigned int quadVAO, quadVBO;
+	static unsigned int FBO, RBO, screenFBO, textureMultiSampled, screenTexture;
 
 	static float quadVertices[] = { // vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
 		// positions   // texCoords
@@ -197,25 +198,25 @@ void Program::PostProcessMode(Light * light)
 	{
 		firstEnter = false;
 
+		// configure MSAA framebuffer
 		// generate frame buffer
 		glGenFramebuffers(1, &FBO);
 		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
 		// generate and bind texture for frame buffer
-		glGenTextures(1, &mTexture);
-		glBindTexture(GL_TEXTURE_2D, mTexture);
+		glGenTextures(1, &textureMultiSampled);
+		glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, textureMultiSampled);
+		glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGB, width, height, GL_TRUE);
+		glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
 
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mTexture, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, textureMultiSampled, 0);
 
 		// generate and bind render buffer object
 		glGenRenderbuffers(1, &RBO);
 		// bind render buffer
 		glBindRenderbuffer(GL_RENDERBUFFER, RBO);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+		glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, width, height);
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
 
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -232,15 +233,36 @@ void Program::PostProcessMode(Light * light)
 		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(1);
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+		// configure screen framebuffer
+		glGenFramebuffers(1, &screenFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER, screenFBO);
+
+		glGenTextures(1, &screenTexture);
+		glBindTexture(GL_TEXTURE_2D, screenTexture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, screenTexture, 0);
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+			std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	}
 
 	// render objects to frame buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 	glEnable(GL_DEPTH_TEST);
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+	glClearColor(0.9f, 0.9f, 0.9f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	LightMode(light);
+
+	// blit multisampled buffer to normal colorbuffer of screenFBO
+	glBindFramebuffer(	GL_READ_FRAMEBUFFER, FBO);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, screenFBO);
+	glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 	// render frame buffer to screen
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -252,7 +274,7 @@ void Program::PostProcessMode(Light * light)
 	mShaderList[ShaderType::POST_PROCESS].Use();
 	mShaderList[ShaderType::POST_PROCESS].Set("type", (int)mEffectType);
 	glBindVertexArray(quadVAO);
-	glBindTexture(GL_TEXTURE_2D, mTexture);
+	glBindTexture(GL_TEXTURE_2D, screenTexture);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	glEnable(GL_DEPTH_TEST);
@@ -276,8 +298,29 @@ void Program::GeometryUsedMode(Light * light)
 	mShaderList[(int)ShaderType::GEOMETRY].Set("time", (float)glfwGetTime());
 
 
-	mShaderList[0].Set("light", light);
+	mShaderList[(int)ShaderType::GEOMETRY].Set("light", light);
 	SceneManager::Instance()->Draw();
+}
+
+void Program::InstancingMode(Light * light)
+{
+	mShaderList[(int)ShaderType::INSTANC].Use();
+	glm::mat4 trans;
+	mShaderList[(int)ShaderType::INSTANC].Set("transform", trans);
+
+	glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
+	mShaderList[(int)ShaderType::INSTANC].Set("projection", projection);
+
+	glm::mat4 view = mpCamera->GetViewMatrix();
+	mShaderList[(int)ShaderType::INSTANC].Set("view", view);
+
+	glm::vec3 viewPos = mpCamera->GetPosition();
+	mShaderList[(int)ShaderType::INSTANC].Set("viewPos", viewPos);
+
+
+	mShaderList[(int)ShaderType::INSTANC].Set("light", light);
+	SceneManager::Instance()->Draw();
+
 }
 
 
@@ -356,6 +399,10 @@ bool Program::Init()
 		return false;
 	mShaderList.push_back(shader);
 
+	if (!shader.Create("Shader/Instancing.vert", "Shader/Instancing.frag"))
+		return false;
+	mShaderList.push_back(shader);
+
 	cntModeIndex = 0;
 
 	//Model* model = new Model("Model/Room/room.obj", "Room");
@@ -412,7 +459,11 @@ void Program::Run()
 			PostProcessMode(&directionalLight);
 			break;
 		case 5:
-			GeometryUsedMode(&pointLight);
+			GeometryUsedMode(&directionalLight);
+			break;
+		case 6:
+			InstancingMode(&directionalLight);
+			break;
 		default:
 			break;
 		}
@@ -471,7 +522,7 @@ void Program::ProcessInput(GLFWwindow * window)
 	}
 	else if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS && cntModeIndex != 4)
 	{
-		std::cout << "Post Processing" << std::endl;
+		std::cout << "Post Processing with MSAA" << std::endl;
 		cntModeIndex = 4;
 	}
 	else if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS && cntModeIndex != 5)
@@ -479,8 +530,11 @@ void Program::ProcessInput(GLFWwindow * window)
 		std::cout << "Use Geometry Shader" << std::endl;
 		cntModeIndex = 5;
 	}
-	else if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS && mShaderList.size() > 6)
+	else if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS && cntModeIndex != 6)
+	{
+		std::cout << "Instancing" << std::endl;
 		cntModeIndex = 6;
+	}
 	else if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS && mShaderList.size() > 7)
 		cntModeIndex = 7;
 	else if (glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS && mShaderList.size() > 8)

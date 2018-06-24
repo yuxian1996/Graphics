@@ -29,7 +29,11 @@ void Mesh::Draw(Shader shader)
 
 	//draw
 	glBindVertexArray(VAO);
-	glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0);
+	// normal
+	//glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0);
+
+	//instance
+	glDrawElementsInstanced(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0, 100);
 	glBindVertexArray(0);
 }
 
@@ -39,6 +43,25 @@ void Mesh::Setup()
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
 	glGenBuffers(1, &EBO);
+	static bool firstEnter = true;
+	static unsigned int instanceVBO;
+	static float translations[100][3];
+
+	if (firstEnter)
+	{
+		for (int i = 0; i < 10; ++i)
+		{
+			for (int j = 0; j < 10; ++j)
+			{
+				translations[i * 10 + j][0] = i * 10;
+				translations[i * 10 + j][1] = j * 10;
+				translations[i * 10 + j][2] = 0;
+
+			}
+		}
+		firstEnter = false;
+	}
+
 
 	//bind
 	glBindVertexArray(VAO);
@@ -49,6 +72,13 @@ void Mesh::Setup()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mIndices.size() * sizeof(unsigned int), &mIndices[0], GL_STATIC_DRAW);
 
+	// instance
+	glGenBuffers(1, &instanceVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * 100, &translations[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	//vertex position
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
@@ -58,6 +88,14 @@ void Mesh::Setup()
 	//vertex texture coords
 	glEnableVertexAttribArray(2);
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, TexCoords));
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	// instance
+	glEnableVertexAttribArray(3);
+	glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glVertexAttribDivisor(3, 1);
 
 	//unbind
 	glBindVertexArray(0);

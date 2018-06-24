@@ -107,7 +107,10 @@ std::vector<Texture> Model::loadMaterialTextures(aiMaterial * ipMaterial, aiText
 		//get texture
 		Texture texture;
 		texture.type = iTypeName;
-		texture.id = TextureFromFile(string.C_Str(), mDirectory);
+		if(iTypeName == "textureDiffuse")
+			texture.id = TextureFromFile(string.C_Str(), mDirectory, true);
+		else
+			texture.id = TextureFromFile(string.C_Str(), mDirectory, false);
 		texture.path = string.C_Str();
 		textures.push_back(texture);
 	}
@@ -135,7 +138,16 @@ unsigned int Model::TextureFromFile(const char *path, const std::string &directo
 			format = GL_RGBA;
 
 		glBindTexture(GL_TEXTURE_2D, textureID);
-		glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+		if (gamma)
+		{
+			if(format == GL_RGB)
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+			else if(format == GL_RGBA)
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+		}
+		else
+			glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+
 		glGenerateMipmap(GL_TEXTURE_2D);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);

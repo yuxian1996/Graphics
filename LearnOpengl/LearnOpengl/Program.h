@@ -28,7 +28,8 @@ public:
 		DEPTH,
 		OUTLINE,
 		POST_PROCESS,
-		GEOMETRY
+		GEOMETRY,
+		INSTANC
 	};
 
 	Program() {};
@@ -62,8 +63,8 @@ private:
 	std::vector<Shader> mShaderList;
 	int cntModeIndex;
 	static float width, height, farDistance, nearDistance;
-	unsigned int FBO, RBO;
-	unsigned int mTexture;
+	//unsigned int FBO, RBO;
+	//unsigned int mTexture;
 	unsigned int mEffectType = 0;
 	//unsigned int VBO, VAO, EBO;
 	float mDeltaTime = 0.0f;
@@ -76,4 +77,5 @@ private:
 	void FaceCullingMode(Light* light);
 	void PostProcessMode(Light* light);
 	void GeometryUsedMode(Light* light);
+	void InstancingMode(Light* light);
 };
