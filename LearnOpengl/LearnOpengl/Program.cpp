@@ -2,6 +2,7 @@
 
 Camera* Program::mpCamera = NULL;
 float Program::width = 800, Program::height = 600, Program::farDistance = 100.0f, Program::nearDistance = 0.1f;;
+Program* Program::sInstance = nullptr;
 
 //Callback
 void Program::FramebufferSizeCallback(GLFWwindow* window, int width, int height)
@@ -68,8 +69,33 @@ void Program::ScrollCallBack(GLFWwindow * window, double xoffset, double yoffset
 
 void Program::LightMode(Light* light)
 {
-	mShaderList[(int)ShaderType::LIGHT].Use();
+	glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, nearDistance, farDistance);
+	glm::mat4 lightView = glm::lookAt(glm::vec3(-10.0f, 10.0f, 0), glm::vec3(0, 0, 0), glm::vec3(0, 1.0f, 0));
+	glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+
+	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+	glBindFramebuffer(GL_FRAMEBUFFER, mDepthMapFBO);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	glCullFace(GL_FRONT);
+	
+	// render depth map
+	mShaderList[ShaderType::SHADOW_MAP].Use();
+
+	mShaderList[ShaderType::SHADOW_MAP].Set("lightSpaceMatrix",lightSpaceMatrix);
+
 	glm::mat4 trans;
+	mShaderList[(int)ShaderType::SHADOW_MAP].Set("transform", trans);
+
+	SceneManager::Instance()->Draw();
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glCullFace(GL_BACK);
+
+	// normal render
+	glViewport(0, 0, width, height);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	mShaderList[(int)ShaderType::LIGHT].Use();
 	mShaderList[(int)ShaderType::LIGHT].Set("transform", trans);
 
 	glm::mat4 projection = glm::perspective(glm::radians(mpCamera->GetZoom()), width / height, 0.1f, 100.0f);
@@ -82,7 +108,14 @@ void Program::LightMode(Light* light)
 	mShaderList[(int)ShaderType::LIGHT].Set("viewPos", viewPos);
 
 
-	mShaderList[0].Set("light", light);
+	mShaderList[ShaderType::LIGHT].Set("lightSpaceMatrix", lightSpaceMatrix);
+
+	glActiveTexture(GL_TEXTURE2);
+	mShaderList[ShaderType::LIGHT].Set("shadowMap", (int)mDepthMap);
+	glBindTexture(GL_TEXTURE_2D, mDepthMap);
+	glActiveTexture(GL_TEXTURE0);
+
+	mShaderList[ShaderType::LIGHT].Set("light", light);
 	SceneManager::Instance()->Draw();
 }
 
@@ -403,23 +436,42 @@ bool Program::Init()
 		return false;
 	mShaderList.push_back(shader);
 
-	cntModeIndex = 0;
+	if (!shader.Create("Shader/ShadowMap.vert", "Shader/ShadowMap.frag"))
+		return false;
+	mShaderList.push_back(shader);
 
-	//Model* model = new Model("Model/Room/room.obj", "Room");
-	//model->SetShader(shader);
-	//SceneManager::Instance()->AddModel(model);
+	cntModeIndex = 0;
 
 	// add model
 	Model* model = new Model("Model/nanosuit.obj", "Nanosuit");
 	model->SetShader(mShaderList[cntModeIndex]);
 	SceneManager::Instance()->AddModel(model);
 
+	// depth map frame
+	glGenFramebuffers(1, &mDepthMapFBO);
+
+	// depth map
+	glGenTextures(1, &mDepthMap);
+	glBindTexture(GL_TEXTURE_2D, mDepthMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_NEAREST);
+
+	// bind
+	glBindFramebuffer(GL_FRAMEBUFFER, mDepthMapFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, mDepthMap, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	return true;
 }
 
 void Program::Run()
 {
-	DirectionalLight directionalLight(glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.5f, 0.5f, 0.5f), glm::vec3(0.8f, 0.8f, 0.8f), glm::vec3(0, 0, -1.0f));
+	DirectionalLight directionalLight(glm::vec3(0.1f, 0.1f, 0.1f), glm::vec3(0.5f, 0.5f, 0.5f), glm::vec3(0.8f, 0.8f, 0.8f), glm::vec3(1.0f, -1.0f, 0));
 	PointLight pointLight(glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.7f, 0.7f, 0.7f), glm::vec3(0.8f, 0.8f, 0.8f), glm::vec3(0, 10.0f, 5.0f), 1.0f, 0.09f, 0.032f);
 	SpotLight spotLight(glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.7f, 0.7f, 0.7f), glm::vec3(0.8f, 0.8f, 0.8f), glm::vec3(0, 0, -1.0f), glm::vec3(0, 10.0f, 3.0f),  1.0f, 0.09f, 0.032f, glm::cos(glm::radians(15.0f)), glm::cos(glm::radians(25.0f)));
 
@@ -438,13 +490,15 @@ void Program::Run()
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-		mSkybox->Draw();
+		mSkybox->Draw();		
 
-		//draw
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		// draw
 		switch (cntModeIndex)
 		{
-		case 0 :
-			LightMode(&spotLight);
+		case 0:
+			LightMode(&directionalLight);
 			break;
 		case 1:
 			DepthTest();
@@ -456,7 +510,7 @@ void Program::Run()
 			FaceCullingMode(&directionalLight);
 			break;
 		case 4:
-			PostProcessMode(&directionalLight);
+			PostProcessMode(&spotLight);
 			break;
 		case 5:
 			GeometryUsedMode(&directionalLight);
@@ -467,7 +521,8 @@ void Program::Run()
 		default:
 			break;
 		}
-		
+
+
 		//check events and swap buffers
 		glfwPollEvents();
 		glfwSwapBuffers(mpWindow);

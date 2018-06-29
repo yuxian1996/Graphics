@@ -29,10 +29,11 @@ public:
 		OUTLINE,
 		POST_PROCESS,
 		GEOMETRY,
-		INSTANC
+		INSTANC,
+		SHADOW_MAP
 	};
 
-	Program() {};
+	Program() { sInstance = this; };
 	~Program() {};
 	
 	/*Initialize*/
@@ -56,20 +57,23 @@ public:
 	static glm::mat4 GetProjectionMatrix() {
 		return glm::perspective(glm::radians(mpCamera->GetZoom()), (float)width / (float)height, 0.1f, 100.0f);}
 
+	static Program* Instance() { return sInstance; };
+
+	unsigned int mDepthMapFBO, mDepthMap;
+
 private:
 	static Camera* mpCamera;
+	static Program* sInstance;
 
 	GLFWwindow* mpWindow;
 	std::vector<Shader> mShaderList;
 	int cntModeIndex;
 	static float width, height, farDistance, nearDistance;
-	//unsigned int FBO, RBO;
-	//unsigned int mTexture;
 	unsigned int mEffectType = 0;
-	//unsigned int VBO, VAO, EBO;
 	float mDeltaTime = 0.0f;
 	float mLastFrame = 0.0f;
 	Cubemap* mSkybox;
+	const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
 
 	void LightMode(Light* light);
 	void DepthTest();

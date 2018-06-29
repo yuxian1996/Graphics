@@ -31,20 +31,38 @@ struct Light
 in vec2 TexCoords;
 in vec3 FragPos;
 in vec3 Normal;
+in vec4 FragPosLightSpace;
 
 uniform vec3 viewPos;
 uniform Light light;
 uniform Material material;
+uniform sampler2D shadowMap;
+
+float ShadowCalculation(vec4 fragPosLightSpace)
+{
+	float bias = 0.005;
+	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	projCoords = projCoords * 0.5 + 0.5;
+	float closestDepth = texture(shadowMap, projCoords.xy).r;
+	float currentDepth = projCoords.z;
+	float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+
+	return shadow;
+}
 
 void main()
 {
 	//FragColor = vec4(Normal, 1.0);
 	vec3 lightDir;
+	float shadow = 0.0;
 	float attenuation = 1.0;
 	if(light.type == 0 || light.type == 1)
 	{
 		if(light.type == 0)
+		{
+			shadow = ShadowCalculation(FragPosLightSpace);
 			lightDir = normalize(-light.direction);
+		}
 		else if(light.type == 1)
 		{
 			float distance = length(light.position - FragPos);
@@ -76,8 +94,7 @@ void main()
 		diffuse *= attenuation;
 		specular *= attenuation;
 
-		vec3 result = ambient + diffuse + specular;
-
+		vec3 result = ambient + (1.0 - shadow) * (diffuse + specular);
 		FragColor = vec4(result, 1.0); 
 
 	}

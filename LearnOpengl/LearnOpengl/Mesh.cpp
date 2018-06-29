@@ -1,4 +1,5 @@
 #include "Mesh.h"
+#include "Program.h"
 
 Mesh::Mesh(std::vector<Vertex> iVertices, std::vector<unsigned int> iIndices, std::vector<Texture> iTextures):
 	mVertices(iVertices), mIndices(iIndices),mTextures(iTextures)
@@ -10,6 +11,10 @@ void Mesh::Draw(Shader shader)
 {
 	unsigned int numDiffuse = 1;
 	unsigned int numSpecular = 1;
+
+
+	//draw
+	glBindVertexArray(VAO);
 	for (int i = 0; i < mTextures.size(); i++)
 	{
 		glActiveTexture(GL_TEXTURE0 + i);
@@ -27,13 +32,16 @@ void Mesh::Draw(Shader shader)
 	}
 	glActiveTexture(GL_TEXTURE0);
 
-	//draw
-	glBindVertexArray(VAO);
+	glActiveTexture(GL_TEXTURE2);
+	shader.Set("shadowMap", 2);
+	glBindTexture(GL_TEXTURE_2D, Program::Instance()->mDepthMap);
+	glActiveTexture(GL_TEXTURE0);
+
 	// normal
-	//glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0);
+	glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0);
 
 	//instance
-	glDrawElementsInstanced(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0, 100);
+	//glDrawElementsInstanced(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0, 100);
 	glBindVertexArray(0);
 }
 
